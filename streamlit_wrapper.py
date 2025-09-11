@@ -33,7 +33,7 @@ if uploaded_file is not None:
 
         # Display original data (first 10 rows)
         st.subheader("📋 Original Data (First 10 rows)")
-        st.dataframe(df.head(10), use_container_width=True)
+        st.dataframe(df.head(10), width='stretch')
 
         # Sidebar configuration for CTGAN
         st.sidebar.subheader("CTGAN Parameters")
@@ -61,8 +61,8 @@ if uploaded_file is not None:
             "Number of Synthetic Samples",
             min_value=1,
             max_value=10000,
-            value=len(df),
-            help="Number of synthetic samples to generate",
+            value=(len(df))*2,
+            help="Number of synthetic samples to generate (2x the original by default)",
         )
 
         # Discrete columns selection

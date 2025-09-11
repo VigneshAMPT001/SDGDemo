@@ -1,8 +1,7 @@
 rdt
 tqdm
 streamlit
-gradio
 pandas
-numpy==1.26.4
+numpy
 ctgan
-torch<2.2
+torch
