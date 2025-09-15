@@ -19,7 +19,7 @@ from ctgan import CTGAN, TVAE
 
 # Page configuration
 st.set_page_config(
-    page_title="Advanced Data Synthesizer",
+    page_title="DataSyn",
     page_icon="🤖",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -204,10 +204,11 @@ def train_ctgan_model(data: pd.DataFrame, model_params: Dict[str, Any]):
 
 # Main UI
 st.markdown(
-    '<h1 class="main-header">🤖 Advanced Data Synthesizer</h1>', unsafe_allow_html=True
+    '<h1 class="main-header">🤖 DataSyn - Advanced Data Synthesizer</h1>',
+    unsafe_allow_html=True,
 )
 st.markdown(
-    "Generate high-quality synthetic data using state-of-the-art machine learning models"
+    "Generate high-quality synthetic data using GAN-based machine learning models"
 )
 
 # Sidebar configuration
@@ -378,6 +379,13 @@ with tab3:
             table_name = list(data.keys())[0]
             table_data = data[table_name]
 
+            potential_discrete = []
+            for col in table_data.columns:
+                if table_data[col].dtype == "object" or table_data[col].nunique() < 20:
+                    potential_discrete.append(col)
+
+            model_params["discrete_columns"] = potential_discrete
+
             if model_type == "CTGAN":
                 synthetic_data, synthesizer = train_ctgan_model(
                     table_data, model_params
@@ -460,20 +468,20 @@ with tab3:
             st.download_button(
                 label="📥 Download Synthetic Data",
                 data=csv_buffer.getvalue(),
-                file_name=f"synthetic_data_{model_type.lower()}.csv",
+                file_name=f"synthetic_data_{table_name}_{model_type.lower()}.csv",
                 mime="text/csv",
                 help="Download the synthetic dataset as CSV",
             )
 
-# Footer
-st.markdown("---")
-st.markdown(
-    """
-    <div style='text-align: center; color: #666;'>
-        Built with ❤️ using <a href='https://github.com/sdv-dev/SDV'>SDV</a>, 
-        <a href='https://github.com/sdv-dev/CTGAN'>CTGAN</a>, and 
-        <a href='https://streamlit.io/'>Streamlit</a>
-    </div>
-    """,
-    unsafe_allow_html=True,
-)
+# # Footer
+# st.markdown("---")
+# st.markdown(
+#     """
+#     <div style='text-align: center; color: #666;'>
+#         Built with ❤️ using <a href='https://github.com/sdv-dev/SDV'>SDV</a>,
+#         <a href='https://github.com/sdv-dev/CTGAN'>CTGAN</a>, and
+#         <a href='https://streamlit.io/'>Streamlit</a>
+#     </div>
+#     """,
+#     unsafe_allow_html=True,
+# )
