@@ -1,0 +1,97 @@
+{
+    "tables": {
+        "person": {
+            "columns": {
+                "person_id": {
+                    "sdtype": "id"
+                },
+                "gender_concept_id": {
+                    "sdtype": "id"
+                },
+                "year_of_birth": {
+                    "sdtype": "numerical"
+                },
+                "month_of_birth": {
+                    "sdtype": "numerical"
+                },
+                "day_of_birth": {
+                    "sdtype": "categorical"
+                },
+                "birth_datetime": {
+                    "sdtype": "numerical"
+                },
+                "race_concept_id": {
+                    "sdtype": "id"
+                },
+                "ethnicity_concept_id": {
+                    "sdtype": "id"
+                },
+                "location_id": {
+                    "sdtype": "id"
+                },
+                "provider_id": {
+                    "sdtype": "id"
+                },
+                "care_site_id": {
+                    "sdtype": "id"
+                },
+                "person_source_value": {
+                    "sdtype": "categorical"
+                },
+                "gender_source_value": {
+                    "sdtype": "categorical"
+                },
+                "gender_source_concept_id": {
+                    "sdtype": "id"
+                },
+                "race_source_value": {
+                    "sdtype": "categorical"
+                },
+                "race_source_concept_id": {
+                    "sdtype": "id"
+                },
+                "ethnicity_source_value": {
+                    "sdtype": "categorical"
+                },
+                "ethnicity_source_concept_id": {
+                    "sdtype": "id"
+                }
+            },
+            "primary_key": "person_id"
+        },
+        "condition_era": {
+            "columns": {
+                "condition_era_id": {
+                    "sdtype": "id"
+                },
+                "person_id": {
+                    "sdtype": "id"
+                },
+                "condition_concept_id": {
+                    "sdtype": "id"
+                },
+                "condition_era_start_date": {
+                    "datetime_format": "%Y-%m-%d",
+                    "sdtype": "datetime"
+                },
+                "condition_era_end_date": {
+                    "datetime_format": "%Y-%m-%d",
+                    "sdtype": "datetime"
+                },
+                "condition_occurrence_count": {
+                    "sdtype": "categorical"
+                }
+            },
+            "primary_key": "condition_era_id"
+        }
+    },
+    "relationships": [
+        {
+            "parent_table_name": "person",
+            "child_table_name": "condition_era",
+            "parent_primary_key": "person_id",
+            "child_foreign_key": "person_id"
+        }
+    ],
+    "METADATA_SPEC_VERSION": "V1"
+}
