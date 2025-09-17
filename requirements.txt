@@ -5,3 +5,7 @@ pandas
 numpy
 ctgan
 torch
+fastapi
+uvicorn
+python-multipart
+sdv
