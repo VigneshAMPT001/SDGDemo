@@ -13,6 +13,11 @@ from sdv.io.local import CSVHandler
 from sdv.metadata import Metadata
 from sdv.utils import drop_unknown_references
 from sdv.multi_table import HMASynthesizer
+from sdv.evaluation.multi_table import (
+    evaluate_quality,
+    get_column_plot,
+    get_cardinality_plot,
+)
 
 # CTGAN imports
 from ctgan import CTGAN, TVAE
@@ -231,8 +236,13 @@ domain = st.sidebar.selectbox(
 )
 
 # Main content area with tabs
-tab1, tab2, tab3 = st.tabs(
-    ["📊 Pre-configured Datasets", "📁 Custom Dataset Upload", "📈 Results & Download"]
+tab1, tab2, tab3, tab4 = st.tabs(
+    [
+        "📊 Pre-configured Datasets",
+        "📁 Custom Dataset Upload",
+        "🏁 Results & Download",
+        "🧪 Quality & Visualization",
+    ]
 )
 
 with tab1:
@@ -472,6 +482,115 @@ with tab3:
                 mime="text/csv",
                 help="Download the synthetic dataset as CSV",
             )
+
+with tab4:
+    st.header("Quality & Visualization")
+
+    if (
+        "synthetic_data" in st.session_state
+        and isinstance(st.session_state.synthetic_data, dict)
+        and "domain_data" in st.session_state
+        and "metadata" in st.session_state
+        and st.session_state.metadata is not None
+    ):
+        data = st.session_state.domain_data
+        metadata = st.session_state.metadata
+        synthetic_data = st.session_state.synthetic_data
+
+        st.subheader("✅ Quality Report")
+        try:
+            with st.spinner("Evaluating synthetic data quality..."):
+                quality_report = evaluate_quality(
+                    real_data=data,
+                    synthetic_data=synthetic_data,
+                    metadata=metadata,
+                )
+            overall_score = None
+            if hasattr(quality_report, "get_score"):
+                try:
+                    overall_score = quality_report.get_score()
+                except Exception:
+                    overall_score = None
+            if overall_score is not None:
+                st.metric("Overall Quality Score", f"{overall_score:.3f}")
+            details = None
+            if hasattr(quality_report, "get_details"):
+                try:
+                    details = quality_report.get_details()
+                except TypeError:
+                    try:
+                        details = quality_report.get_details(property_name=None)
+                    except Exception:
+                        details = None
+            if details is not None:
+                st.dataframe(details, use_container_width=True)
+            else:
+                st.write(quality_report)
+        except Exception as e:
+            st.warning(f"Quality evaluation not available: {str(e)}")
+
+        st.subheader("📊 Column Distribution Comparison")
+        try:
+            table_options = list(synthetic_data.keys())
+            sel_table = st.selectbox("Table", table_options, key="col_plot_table_qv")
+            sel_column = st.selectbox(
+                "Column",
+                list(synthetic_data[sel_table].columns),
+                key="col_plot_column_qv",
+            )
+            if st.button("Show Column Plot", key="show_col_plot_qv"):
+                with st.spinner("Generating column plot..."):
+                    fig = get_column_plot(
+                        real_data=data,
+                        synthetic_data=synthetic_data,
+                        metadata=metadata,
+                        table_name=sel_table,
+                        column_name=sel_column,
+                    )
+                    try:
+                        st.plotly_chart(fig, use_container_width=True)
+                    except Exception:
+                        st.pyplot(fig, use_container_width=True)
+        except Exception as e:
+            st.warning(f"Column plot unavailable: {str(e)}")
+
+        st.subheader("🔗 Cardinality Plot (Parent→Child)")
+        try:
+            relationships = metadata.to_dict().get("relationships", [])
+            if relationships:
+                rel_labels = [
+                    f"{rel['parent_table_name']} → {rel['child_table_name']}"
+                    for rel in relationships
+                ]
+                sel_idx = st.selectbox(
+                    "Relationship",
+                    list(range(len(relationships))),
+                    format_func=lambda i: rel_labels[i],
+                    key="card_plot_rel_qv",
+                )
+                sel_rel = relationships[sel_idx]
+                if st.button("Show Cardinality Plot", key="show_card_plot_qv"):
+                    with st.spinner("Generating cardinality plot..."):
+                        fig = get_cardinality_plot(
+                            real_data=data,
+                            synthetic_data=synthetic_data,
+                            child_table_name=sel_rel["child_table_name"],
+                            parent_table_name=sel_rel["parent_table_name"],
+                            child_foreign_key=sel_rel["child_foreign_key"],
+                            metadata=metadata,
+                        )
+                        try:
+                            st.plotly_chart(fig, use_container_width=True)
+                        except Exception:
+                            st.pyplot(fig, use_container_width=True)
+            else:
+                st.info("No relationships found in metadata.")
+        except Exception as e:
+            st.warning(f"Cardinality plot unavailable: {str(e)}")
+    else:
+        st.info(
+            "Generate SDV multi-table synthetic data first (using domain data with metadata)."
+        )
 
 # # Footer
 # st.markdown("---")
