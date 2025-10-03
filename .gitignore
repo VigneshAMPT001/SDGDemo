@@ -12,7 +12,8 @@ __pycache__/
 /venv
 /data/*
 /examples
-
+/data/pharmacv
+/data/pharmacohort
 # Distribution / packaging
 .Python
 env/
