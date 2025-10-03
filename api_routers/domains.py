@@ -4,7 +4,7 @@ from api_routers.route_utils import (
     load_domain_metadata,
 )
 
-from api_routers.shared import AVAILABLE_DOMAINS
+from api_routers.shared import AVAILABLE_DOMAINS, AVAILABLE_USECASES
 from fastapi.responses import StreamingResponse
 import io
 import zipfile
@@ -57,15 +57,21 @@ def get_domains():
     return {"domains": AVAILABLE_DOMAINS, "implemented": ["Pharma"]}
 
 
-@router.get("/{domain}/datasets")
+@router.get("/usecases")
+def get_usecases():
+    return {"usecases": AVAILABLE_USECASES}
+
+
+@router.get("/{domain}/{usecase}/datasets")
 def get_domain_datasets(
     domain: str,
+    usecase: str,
     format: str = Query("zip", description="Response format: 'zip' or 'csv'"),
 ):
     if domain not in AVAILABLE_DOMAINS:
         raise HTTPException(status_code=404, detail="Unknown domain")
 
-    data = load_domain_data(domain)
+    data = load_domain_data(domain, usecase)
     if not data:
         raise HTTPException(
             status_code=404, detail="Datasets not available for this domain yet"
@@ -92,7 +98,7 @@ def get_domain_datasets(
             tables.append(table_info)
 
         # Load metadata for the domain
-        metadata = load_domain_metadata(domain)
+        metadata = load_domain_metadata(domain, usecase)
         metadata_dict = None
         if metadata:
             try:
@@ -108,15 +114,3 @@ def get_domain_datasets(
             metadata=metadata_dict,
         )
         return response
-    else:
-        # ZIP format with metadata
-        metadata = load_domain_metadata(domain)
-        zip_bytes = create_zip_with_metadata(data, metadata, domain)
-        file_name = f"{domain.lower()}_datasets_with_metadata"
-        return StreamingResponse(
-            io.BytesIO(zip_bytes),
-            media_type="application/zip",
-            headers={
-                "Content-Disposition": f"attachment; filename={file_name}_{datetime.now().strftime('%Y%m%d%H%M%S')}.zip"
-            },
-        )

@@ -43,11 +43,55 @@ def validate_synthesis_request(domain: str, req: SynthesizeRequest) -> None:
         raise HTTPException(status_code=400, detail="Unsupported model_type")
 
 
+def _persist_synthesis_job(
+    *,
+    file_bytes: Optional[bytes],
+    file_name: Optional[str],
+    file_type: Optional[str],
+    domain: Optional[str],
+    model_used: Optional[str],
+    num_files: Optional[int],
+    status: str = "completed",
+    version: int = 1,
+) -> str:
+    """Persist a synthesis job into DB and return the job_id.
+
+    Raises HTTPException on failure.
+    """
+    job_id = str(uuid.uuid4())
+    conn = create_connection()
+    if conn is None:
+        raise HTTPException(status_code=500, detail="Database connection failed")
+    try:
+        insert_ok = insert_job_record(
+            conn,
+            job_id=job_id,
+            file_name=file_name,
+            file_bytes=file_bytes,
+            num_files=num_files,
+            status=status,
+            model_used=model_used,
+            version=version,
+            file_size=len(file_bytes) if file_bytes is not None else None,
+            file_type=file_type,
+            domain=domain,
+            use_case=None,
+        )
+        if not insert_ok:
+            raise HTTPException(status_code=500, detail="Failed to persist job")
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+    return job_id
+
+
 def process_sdv_synthesis(
-    domain: str, data: Dict[str, pd.DataFrame], req: SynthesizeRequest
+    domain: str, usecase: str, data: Dict[str, pd.DataFrame], req: SynthesizeRequest
 ) -> Dict[str, Any]:
     """Process SDV multi-table synthesis."""
-    metadata = load_domain_metadata(domain)
+    metadata = load_domain_metadata(domain, usecase)
     if metadata is None:
         raise HTTPException(status_code=400, detail="Metadata required for SDV")
 
@@ -87,51 +131,30 @@ def process_single_table_synthesis(
     }
 
 
-def create_synthesis_job_result(domain: str, req: SynthesizeRequest) -> Dict[str, Any]:
+def create_synthesis_job_result(
+    domain: str, usecase: str, req: SynthesizeRequest
+) -> Dict[str, Any]:
     """Create synthesis job, persist to DB, and return result stub."""
-    data = load_domain_data(domain)
+    data = load_domain_data(domain, usecase)
     if not data:
         raise HTTPException(status_code=404, detail="Domain data not available")
 
-    job_id = str(uuid.uuid4())
-
     try:
         if req.model_type == "SDV (Multi-table)":
-            result = process_sdv_synthesis(domain, data, req)
+            result = process_sdv_synthesis(domain, usecase, data, req)
         else:
             result = process_single_table_synthesis(data, req)
 
-        # Persist to DB
-        conn = create_connection()
-        if conn is None:
-            raise HTTPException(status_code=500, detail="Database connection failed")
-        try:
-            file_bytes = result["bytes"]
-            file_name = result["filename"]
-            file_size = len(file_bytes) if file_bytes is not None else None
-            num_files = len(data)
-            status = result["status"]
-            model_used = req.model_type
-            file_type = result.get("file_type")
-            insert_ok = insert_job_record(
-                conn,
-                job_id=job_id,
-                file_name=file_name,
-                file_bytes=file_bytes,
-                num_files=num_files,
-                status=status,
-                model_used=model_used,
-                version=1,
-                file_size=file_size,
-                file_type=file_type,
-            )
-            if not insert_ok:
-                raise HTTPException(status_code=500, detail="Failed to persist job")
-        finally:
-            try:
-                conn.close()
-            except Exception:
-                pass
+        # Persist to DB (centralized)
+        job_id = _persist_synthesis_job(
+            file_bytes=result["bytes"],
+            file_name=result["filename"],
+            file_type=result.get("file_type"),
+            domain=result["domain"],
+            model_used=req.model_type,
+            num_files=len(data),
+            status=result["status"],
+        )
 
         return {"job_id": job_id, "status": result["status"]}
 
@@ -139,27 +162,19 @@ def create_synthesis_job_result(domain: str, req: SynthesizeRequest) -> Dict[str
         raise
     except Exception as e:
         # Persist failed job with error status (no bytes)
-        conn = create_connection()
-        if conn is not None:
-            try:
-                insert_job_record(
-                    conn,
-                    job_id=job_id,
-                    file_name=None,
-                    file_bytes=None,
-                    num_files=len(data) if data else None,
-                    status="failed",
-                    model_used=req.model_type,
-                    version=1,
-                    file_size=None,
-                    file_type=None,
-                )
-            finally:
-                try:
-                    conn.close()
-                except Exception:
-                    pass
-        return {"job_id": job_id, "status": "failed", "error": str(e)}
+        try:
+            _persist_synthesis_job(
+                file_bytes=None,
+                file_name=None,
+                file_type=None,
+                domain=domain,
+                model_used=req.model_type,
+                num_files=len(data) if data else None,
+                status="failed",
+            )
+        except Exception:
+            pass
+        return {"status": "failed", "error": str(e)}
 
 
 def parse_model_params(params: Optional[str]) -> Dict[str, Any]:
@@ -243,37 +258,30 @@ def process_single_table_custom(
 
     csv_buffer = io.StringIO()
     synthetic_df.to_csv(csv_buffer, index=False, encoding="utf-8")
+    file_bytes = csv_buffer.getvalue().encode("utf-8")
+    file_name = f"synthetic_{table_name}_{chosen_model.lower()}.csv"
+    file_type = "text/csv"
 
-    return StreamingResponse(
-        io.BytesIO(csv_buffer.getvalue().encode("utf-8")),
-        media_type="text/csv",
-        headers={
-            "Content-Disposition": f"attachment; filename=synthetic_{table_name}_{chosen_model.lower()}{datetime.now().strftime('%Y%m%d%H%M%S')}.csv"
-        },
+    # Persist job for custom single-table (domain marked as 'Custom')
+    job_id = _persist_synthesis_job(
+        file_bytes=file_bytes,
+        file_name=file_name,
+        file_type=file_type,
+        domain="Custom",
+        model_used=chosen_model,
+        num_files=len(tables),
+        status="completed",
     )
 
-
-def get_all_jobs_result(domain: str):
-    """Get all jobs for the specified domain."""
-    conn = create_connection()
-    if conn is None:
-        raise HTTPException(status_code=500, detail="Database connection failed")
-
-    try:
-        jobs = fetch_query(
-            conn,
-            """SELECT job_id, created_at, file_name, file_size, 
-            num_files, status, model_used, version, 
-            file_type FROM synthetic_jobs WHERE domain = %s""",
-            (domain,),
-        )
-    finally:
-        try:
-            conn.close()
-        except Exception:
-            pass
-
-    return jobs
+    # Include job id in headers for traceability while streaming the file
+    return StreamingResponse(
+        io.BytesIO(file_bytes),
+        media_type=file_type,
+        headers={
+            "Content-Disposition": f"attachment; filename={os.path.splitext(file_name)[0]}{datetime.now().strftime('%Y%m%d%H%M%S')}.csv",
+            "X-Job-Id": job_id,
+        },
+    )
 
 
 async def process_multi_table_custom(
@@ -291,14 +299,77 @@ async def process_multi_table_custom(
 
     synthetic_data, _ = train_sdv_model(tables, metadata, model_params)
     zip_bytes = create_zip_from_tables(synthetic_data)
+    file_name = "synthetic_multi_table_sdv.zip"
+    file_type = "application/zip"
+
+    # Persist job for custom multi-table (domain marked as 'Custom')
+    job_id = _persist_synthesis_job(
+        file_bytes=zip_bytes,
+        file_name=file_name,
+        file_type=file_type,
+        domain="Custom",
+        model_used="SDV (Multi-table)",
+        num_files=len(tables),
+        status="completed",
+    )
 
     return StreamingResponse(
         io.BytesIO(zip_bytes),
-        media_type="application/zip",
+        media_type=file_type,
         headers={
-            "Content-Disposition": f"attachment; filename=synthetic_multi_table_sdv{datetime.now().strftime('%Y%m%d%H%M%S')}.zip"
+            "Content-Disposition": f"attachment; filename=synthetic_multi_table_sdv{datetime.now().strftime('%Y%m%d%H%M%S')}.zip",
+            "X-Job-Id": job_id,
         },
     )
+
+
+def get_all_jobs_result(domain: str):
+    """Get all jobs for the specified domain."""
+    conn = create_connection()
+    if conn is None:
+        raise HTTPException(status_code=500, detail="Database connection failed")
+
+    try:
+        query = (
+            "SELECT job_id, created_at, file_name, file_size, "
+            "num_files, status, model_used, version, file_type, domain, use_case "
+            "FROM synthetic_jobs WHERE domain = %s"
+        )
+        jobs = fetch_query(conn, query, (domain,))
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+    return jobs
+
+
+def download_synthetic_dataset_result(domain: str, job_id: str):
+    """Download a synthetic dataset by job_id and domain."""
+    conn = create_connection()
+    if conn is None:
+        raise HTTPException(status_code=500, detail="Database connection failed")
+
+    try:
+        query = "SELECT csv_bytes, file_type FROM synthetic_jobs WHERE job_id = %s AND domain = %s"
+        rows = fetch_query(conn, query, (job_id, domain))
+        if not rows:
+            raise HTTPException(status_code=404, detail="Job not found")
+
+        # if rows is dict-based
+        if isinstance(rows[0], dict):
+            csv_bytes = rows[0]["csv_bytes"]
+            file_type = rows[0]["file_type"]
+        else:
+            csv_bytes = rows[0][0]
+            file_type = rows[0][1]
+        return StreamingResponse(io.BytesIO(csv_bytes), media_type=file_type)
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
 
 
 # =============================================================================
@@ -311,6 +382,12 @@ def create_synthesis_job(domain: str, req: SynthesizeRequest):
     """Create a synthesis job for the specified domain."""
     validate_synthesis_request(domain, req)
     return create_synthesis_job_result(domain, req)
+
+
+@router.get("/{domain}/download_synthetic_dataset/{job_id}")
+def download_synthetic_dataset(domain: str, job_id: str):
+    """Download a synthetic dataset by job_id and domain."""
+    return download_synthetic_dataset_result(domain, job_id)
 
 
 @router.get("/{domain}/get_all_jobs")
@@ -360,7 +437,7 @@ def get_synthesis_result(job_id: str):
     )
 
 
-@router.post("/synthesize/custom")
+@router.post("/custom")
 async def synthesize_custom(
     files: List[UploadFile] = File(..., description="One or more CSV files"),
     metadata_json: Optional[UploadFile] = File(

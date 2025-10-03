@@ -1,22 +1,25 @@
 import os
 import psycopg2
-from psycopg2 import Error
+from psycopg2 import Error, extras
 from dotenv import load_dotenv
 
 # Load variables from .env file
 load_dotenv()
 
 
-def create_connection():
+def create_connection(isCloud: bool = False):
     connection = None
     try:
-        connection = psycopg2.connect(
-            host=os.getenv("DB_HOST", "localhost"),
-            database=os.getenv("DB_NAME"),
-            user=os.getenv("DB_USER"),
-            password=os.getenv("DB_PASSWORD"),
-            port=os.getenv("DB_PORT", "5432"),
-        )
+        if isCloud:
+            connection = psycopg2.connect(os.getenv("DB_CONN_CLOUD"))
+        else:
+            connection = psycopg2.connect(
+                host=os.getenv("DB_HOST", "localhost"),
+                database=os.getenv("DB_NAME"),
+                user=os.getenv("DB_USER"),
+                password=os.getenv("DB_PASSWORD"),
+                port=os.getenv("DB_PORT", "5432"),
+            )
         print("Connection to PostgreSQL DB successful")
     except Error as e:
         print(f"The error '{e}' occurred")
@@ -33,98 +36,16 @@ def execute_query(connection, query):
         print(f"The error '{e}' occurred")
 
 
-def fetch_query(connection, query):
+def fetch_query(connection, query, params=None):
     """For SELECT queries that return rows"""
-    cursor = connection.cursor()
+    cursor = connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     try:
-        cursor.execute(query)
+        if params:
+            cursor.execute(query, params)
+        else:
+            cursor.execute(query)
         records = cursor.fetchall()
         return records
-    except Error as e:
-        print(f"The error '{e}' occurred")
-        return []
-
-
-def insert_job(connection, job_data):
-    """
-    Insert a job record into the jobs table.
-
-    Parameters:
-        connection: psycopg2 connection object
-        job_data: dict mapping column name -> value, e.g. {"title": "...", "company": "..."}
-
-    Returns:
-        The newly inserted job id if the table has an 'id' serial/identity column and RETURNING works; otherwise None.
-    """
-    if not job_data or not isinstance(job_data, dict):
-        raise ValueError("job_data must be a non-empty dict of column -> value")
-
-    columns = ", ".join(job_data.keys())
-    placeholders = ", ".join(["%s"] * len(job_data))
-    values = list(job_data.values())
-
-    query = f"INSERT INTO jobs ({columns}) VALUES ({placeholders}) RETURNING id;"
-
-    cursor = connection.cursor()
-    try:
-        cursor.execute(query, values)
-        inserted_id_row = cursor.fetchone()
-        connection.commit()
-        return inserted_id_row[0] if inserted_id_row else None
-    except Error as e:
-        connection.rollback()
-        print(f"The error '{e}' occurred")
-        return None
-    finally:
-        cursor.close()
-
-
-def select_jobs(
-    connection, where_clause=None, params=None, order_by=None, limit=None, offset=None
-):
-    """
-    Select jobs from the jobs table.
-
-    Parameters:
-        connection: psycopg2 connection object
-        where_clause: optional SQL string for WHERE without the 'WHERE' keyword. Use placeholders (%s) for params.
-        params: tuple/list of parameters for the where_clause placeholders
-        order_by: optional SQL fragment for ORDER BY without the 'ORDER BY' keyword
-        limit: optional integer to limit results
-        offset: optional integer to offset results
-
-    Returns:
-        List of rows (tuples) as returned by cursor.fetchall().
-    """
-    sql_parts = ["SELECT * FROM jobs"]
-
-    if where_clause:
-        sql_parts.append(f"WHERE {where_clause}")
-
-    if order_by:
-        sql_parts.append(f"ORDER BY {order_by}")
-
-    if limit is not None:
-        sql_parts.append("LIMIT %s")
-
-    if offset is not None:
-        sql_parts.append("OFFSET %s")
-
-    sql = " ".join(sql_parts)
-
-    exec_params = []
-    if params:
-        exec_params.extend(list(params))
-    if limit is not None:
-        exec_params.append(limit)
-    if offset is not None:
-        exec_params.append(offset)
-
-    cursor = connection.cursor()
-    try:
-        cursor.execute(sql, tuple(exec_params) if exec_params else None)
-        rows = cursor.fetchall()
-        return rows
     except Error as e:
         print(f"The error '{e}' occurred")
         return []
@@ -148,14 +69,16 @@ def insert_job_record(
     version=1,
     file_size=None,
     file_type=None,
+    domain=None,
+    use_case=None,
 ):
     """Insert a synthesis job row into jobs table using provided schema, including file_type TEXT."""
     if file_size is None and file_bytes is not None:
         file_size = len(file_bytes)
 
     sql = (
-        "INSERT INTO jobs (job_id, file_name, file_size, num_files, status, model_used, version, file_type, csv_bytes) "
-        "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)"
+        "INSERT INTO synthetic_jobs (job_id, file_name, file_size, num_files, status, model_used, version, file_type, domain, use_case, csv_bytes) "
+        "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
     )
     params = (
         job_id,
@@ -166,6 +89,8 @@ def insert_job_record(
         model_used,
         version,
         file_type,
+        domain,
+        use_case,
         psycopg2.Binary(file_bytes) if file_bytes is not None else None,
     )
 
@@ -185,8 +110,8 @@ def insert_job_record(
 def get_job_by_id(connection, job_id):
     """Fetch a job by job_id. Returns dict or None."""
     sql = (
-        "SELECT job_id, created_at, file_name, file_size, num_files, status, model_used, version, file_type, csv_bytes "
-        "FROM jobs WHERE job_id = %s"
+        "SELECT job_id, created_at, file_name, file_size, num_files, status, model_used, version, file_type, domain, use_case, csv_bytes "
+        "FROM synthetic_jobs WHERE job_id = %s"
     )
     cursor = connection.cursor()
     try:
@@ -204,7 +129,84 @@ def get_job_by_id(connection, job_id):
             "model_used": row[6],
             "version": row[7],
             "file_type": row[8],
-            "csv_bytes": row[9],
+            "domain": row[9],
+            "use_case": row[10],
+            "csv_bytes": row[11],
+        }
+    except Error as e:
+        print(f"The error '{e}' occurred")
+        return None
+    finally:
+        cursor.close()
+
+
+# ---------------------------
+# Quality jobs helpers
+# ---------------------------
+
+
+def insert_quality_job(
+    connection,
+    job_id,
+    domain,
+    synthesis_job_id,
+    status,
+    score=None,
+    error=None,
+    message=None,
+    report_data=None,
+):
+    """Insert a quality job record into a quality_jobs table."""
+    sql = """
+        INSERT INTO quality_runs (job_id, domain, synthesis_job_id, status, score, error, message, report_data, created_at)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NOW())
+    """
+    params = (
+        job_id,
+        domain,
+        synthesis_job_id,
+        status,
+        score,
+        error,
+        message,
+        report_data,
+    )
+
+    cursor = connection.cursor()
+    try:
+        cursor.execute(sql, params)
+        connection.commit()
+        return True
+    except Error as e:
+        connection.rollback()
+        print(f"The error '{e}' occurred")
+        return False
+    finally:
+        cursor.close()
+
+
+def get_quality_job_by_id(connection, job_id):
+    """Fetch a quality job by job_id. Returns dict or None."""
+    sql = """
+        SELECT job_id, domain, synthesis_job_id, status, score, error, message, report_data, created_at
+        FROM quality_jobs WHERE job_id = %s
+    """
+    cursor = connection.cursor()
+    try:
+        cursor.execute(sql, (job_id,))
+        row = cursor.fetchone()
+        if not row:
+            return None
+        return {
+            "job_id": row[0],
+            "domain": row[1],
+            "synthesis_job_id": row[2],
+            "status": row[3],
+            "score": row[4],
+            "error": row[5],
+            "message": row[6],
+            "report_data": row[7],
+            "created_at": row[8],
         }
     except Error as e:
         print(f"The error '{e}' occurred")
@@ -217,7 +219,7 @@ if __name__ == "__main__":
     connection = create_connection()
     if connection:
         query = """
-            SELECT * FROM jobs;
+            SELECT * FROM synthetic_jobs;
         """
         rows = fetch_query(connection, query)
         for row in rows:

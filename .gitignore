@@ -1,6 +1,6 @@
 .github/.tmp/
 tests/readme_test/
-
+.vscode
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -10,7 +10,7 @@ __pycache__/
 *.so
 
 /venv
-
+/data/*
 /examples
 
 # Distribution / packaging

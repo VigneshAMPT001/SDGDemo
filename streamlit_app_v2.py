@@ -314,6 +314,144 @@ with tab2:
             except Exception as e:
                 st.error(f"❌ Error loading {uploaded_file.name}: {str(e)}")
 
+    # Dataset Validation Section
+    if (
+        uploaded_files
+        and "custom_data" in st.session_state
+        and st.session_state.custom_data
+    ):
+        st.subheader("🔍 Dataset Validation")
+
+        # Domain and usecase selection for validation
+        col1, col2 = st.columns(2)
+        with col1:
+            validation_domain = st.selectbox(
+                "Select Domain for Validation", ["Pharma"], key="validation_domain"
+            )
+        with col2:
+            validation_usecase = st.selectbox(
+                "Select Usecase for Validation",
+                ["Patient Cohort Builder", "Pharmacovigilance"],
+                key="validation_usecase",
+            )
+
+        if st.button("🔍 Validate Dataset", type="secondary"):
+            with st.spinner("Validating dataset..."):
+                try:
+                    # Import validation function
+                    from api_routers.dataset_validator import validate_custom_dataset
+
+                    # Perform validation
+                    validation_result = validate_custom_dataset(
+                        st.session_state.custom_data,
+                        validation_domain,
+                        validation_usecase,
+                    )
+
+                    # Store validation result in session state
+                    st.session_state.validation_result = validation_result
+
+                except Exception as e:
+                    st.error(f"❌ Validation failed: {str(e)}")
+
+        # Display validation results
+        if "validation_result" in st.session_state:
+            validation_result = st.session_state.validation_result
+
+            # Summary
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                st.metric("Tables", validation_result.summary["total_tables"])
+            with col2:
+                st.metric("Total Rows", validation_result.summary["total_rows"])
+            with col3:
+                st.metric("Issues", validation_result.summary["total_issues"])
+            with col4:
+                st.metric("Warnings", validation_result.summary["total_warnings"])
+
+            # Validation status
+            if validation_result.is_valid:
+                st.success(
+                    "✅ Dataset validation passed! Your dataset is ready for synthesis."
+                )
+            else:
+                st.error(
+                    "❌ Dataset validation failed. Please fix the issues below before proceeding."
+                )
+
+            # Display issues
+            if validation_result.issues:
+                st.subheader("🚨 Critical Issues")
+                for issue in validation_result.issues:
+                    with st.expander(
+                        f"❌ {issue.table_name}: {issue.message}", expanded=True
+                    ):
+                        st.write(f"**Issue Type:** {issue.issue_type}")
+                        if issue.column_name:
+                            st.write(f"**Column:** {issue.column_name}")
+                        st.write(f"**Message:** {issue.message}")
+                        if issue.suggested_fix:
+                            st.write(f"**Suggested Fix:** {issue.suggested_fix}")
+
+            # Display warnings
+            if validation_result.warnings:
+                st.subheader("⚠️ Warnings")
+                for warning in validation_result.warnings:
+                    with st.expander(f"⚠️ {warning.table_name}: {warning.message}"):
+                        st.write(f"**Issue Type:** {warning.issue_type}")
+                        if warning.column_name:
+                            st.write(f"**Column:** {warning.column_name}")
+                        st.write(f"**Message:** {warning.message}")
+                        if warning.suggested_fix:
+                            st.write(f"**Suggested Fix:** {warning.suggested_fix}")
+
+            # Display info
+            if validation_result.info:
+                st.subheader("ℹ️ Information")
+                for info in validation_result.info:
+                    with st.expander(f"ℹ️ {info.table_name}: {info.message}"):
+                        st.write(f"**Issue Type:** {info.issue_type}")
+                        if info.column_name:
+                            st.write(f"**Column:** {info.column_name}")
+                        st.write(f"**Message:** {info.message}")
+                        if info.suggested_fix:
+                            st.write(f"**Suggested Fix:** {info.suggested_fix}")
+
+            # Expected schema information
+            st.subheader("📋 Expected Schema")
+            if validation_domain == "Pharma":
+                if validation_usecase == "Patient Cohort Builder":
+                    st.info(
+                        """
+                    **Expected Tables for Patient Cohort Builder:**
+                    - `person.csv` - Patient demographic information
+                    - `condition_era.csv` - Patient condition records
+                    - `care_site.csv` - Healthcare facility information
+                    
+                    **Key Requirements:**
+                    - `person_id` must be unique and present in all related tables
+                    - Date columns should be in YYYY-MM-DD format
+                    - ID columns should be numeric
+                    """
+                    )
+                elif validation_usecase == "Pharmacovigilance":
+                    st.info(
+                        """
+                    **Expected Tables for Pharmacovigilance:**
+                    - `DEMO_cleaned.csv` - Patient demographics
+                    - `DRUG_cleaned.csv` - Drug information
+                    - `INDI_cleaned.csv` - Indication data
+                    - `OUTC_cleaned.csv` - Outcome data
+                    - `REAC_cleaned.csv` - Reaction data
+                    - `RPSR_cleaned.csv` - Reporter data
+                    - `THER_cleaned.csv` - Therapy data
+                    
+                    **Key Requirements:**
+                    - `primaryid` must be consistent across all tables
+                    - All tables should reference the same set of primary IDs
+                    """
+                    )
+
 with tab3:
     st.header("Results & Download")
 
@@ -355,6 +493,20 @@ with tab3:
             data = st.session_state.custom_data
             metadata = None
             data_source = "custom"
+
+            # Check if custom data has been validated
+            if "validation_result" not in st.session_state:
+                st.warning(
+                    "⚠️ Custom dataset has not been validated. Please validate your dataset first."
+                )
+                st.stop()
+
+            validation_result = st.session_state.validation_result
+            if not validation_result.is_valid:
+                st.error(
+                    "❌ Custom dataset validation failed. Please fix the issues before proceeding with synthesis."
+                )
+                st.stop()
         else:
             st.error("❌ Please load data first (either domain data or custom upload)")
             st.stop()

@@ -13,23 +13,89 @@ from sdv.utils import load_synthesizer
 
 # CTGAN imports
 from ctgan import CTGAN, TVAE
+from typing import List
 
 
-def load_domain_data(domain: str) -> Dict[str, pd.DataFrame]:
+def load_domain_data(domain: str, usecase: str) -> Dict[str, pd.DataFrame]:
     connector = CSVHandler()
-    if domain == "Pharma":
+
+    def get_files_in_directory(directory_path: str) -> List[str]:
+        files_in_directory = []
+        for entry in os.listdir(directory_path):
+            full_path = os.path.join(directory_path, entry)
+            if os.path.isfile(full_path):
+                files_in_directory.append(entry)
+        return files_in_directory
+
+    def return_data(
+        directory_path: str, files_in_directory: List[str]
+    ) -> Dict[str, pd.DataFrame]:
         data = connector.read(
-            folder_name="data/pharma",
-            file_names=["person.csv", "condition_era.csv"],
+            folder_name=directory_path,
+            file_names=files_in_directory,
             read_csv_parameters={"parse_dates": False, "encoding": "latin-1"},
         )
-        return {"person": data["person"], "condition_era": data["condition_era"]}
+        return {
+            file_name.replace(".csv", ""): data[file_name.replace(".csv", "")]
+            for file_name in files_in_directory
+        }
+
+    if domain == "Pharma":
+        if usecase == "Patient Cohort Builder":
+            directory_path = "data/pharmacohort"
+            files_in_directory = get_files_in_directory(directory_path)
+            data = return_data(directory_path, files_in_directory)
+            return data
+
+        elif usecase == "Pharmacovigilance":
+            directory_path = "data/pharmacv"
+            files_in_directory = get_files_in_directory(directory_path)
+            data = return_data(directory_path, files_in_directory)
+            return data
     return {}
 
 
-def load_domain_metadata(domain: str) -> Optional[Metadata]:
+def load_domain_metadata(domain: str, usecase: str) -> Optional[Metadata]:
+    """Load or detect metadata for a given domain and usecase.
+
+    First tries to load from existing JSON files, then falls back to detection from data.
+    """
     if domain == "Pharma":
-        return Metadata.load_from_json(filepath="metadata/metadata_pharma_v1.json")
+        if usecase == "Patient Cohort Builder":
+            # Try to load existing metadata file
+            metadata_file = "metadata/metadata_pharmacohort_v1.json"
+            if os.path.exists(metadata_file):
+                try:
+                    metadata = Metadata.load_from_json(filepath=metadata_file)
+                    if metadata:
+                        return metadata
+                except Exception as e:
+                    print(f"Failed to load metadata from {metadata_file}: {e}")
+
+            # Fallback: detect metadata from data
+            data = load_domain_data(domain, usecase)
+            if data:
+                return Metadata.detect_from_dataframes(data)
+            else:
+                raise ValueError("No data found for Patient Cohort Builder")
+
+        elif usecase == "Pharmacovigilance":
+            # Try to load existing metadata file
+            metadata_file = "metadata/metadata_pharmacv_v1.json"
+            if os.path.exists(metadata_file):
+                try:
+                    metadata = Metadata.load_from_json(filepath=metadata_file)
+                    if metadata:
+                        return metadata
+                except Exception as e:
+                    print(f"Failed to load metadata from {metadata_file}: {e}")
+
+            # Fallback: detect metadata from data
+            data = load_domain_data(domain, usecase)
+            if data:
+                return Metadata.detect_from_dataframes(data)
+            else:
+                raise ValueError("No data found for Pharmacovigilance")
     return None
 
 

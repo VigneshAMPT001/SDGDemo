@@ -7,7 +7,6 @@ import pandas as pd
 
 # Import shared models and data structures
 from api_routers.shared import (
-    SYNTHESIS_JOBS,
     QUALITY_JOBS,
     MODEL_CONFIGS,
     AVAILABLE_DOMAINS,
@@ -25,12 +24,14 @@ from api_routers.generate_synthetic_data import router as synthetic_data_router
 from api_routers.models import router as models_router
 from api_routers.run_quality_checks import router as quality_jobs_router
 from api_routers.domains import router as domain_router
+from api_routers.validate_dataset import router as validation_router
 
 ROUTERS = [
     synthetic_data_router,
     models_router,
     quality_jobs_router,
     domain_router,
+    validation_router,
 ]
 
 # ---------------------------
@@ -50,6 +51,7 @@ app.include_router(synthetic_data_router)
 app.include_router(models_router)
 app.include_router(quality_jobs_router)
 app.include_router(domain_router)
+app.include_router(validation_router)
 
 
 # ---------------------------

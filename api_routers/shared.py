@@ -11,6 +11,10 @@ MODEL_CONFIGS: Dict[str, Any] = {}
 # Helpers (reused logic from streamlit_app_v2)
 # ---------------------------
 AVAILABLE_DOMAINS: List[str] = ["Pharma", "BFSI", "Telecom"]
+AVAILABLE_USECASES: List[str] = [
+    "Patient Cohort Builder",
+    "Pharmacovigilance",
+]
 
 
 # ---------------------------
@@ -57,6 +61,7 @@ class DatasetResponse(BaseModel):
 
 class QualityJobRequest(BaseModel):
     domain: str = Field(..., description="Domain for real data and metadata")
+    usecase: str = Field(..., description="Usecase for the seleted domain")
     synthesis_job_id: str = Field(
         ..., description="Job id from /domains/{domain}/synthesize (SDV multi-table)"
     )
