@@ -1,0 +1,174 @@
+{
+    "tables": {
+        "DRUG_cleaned": {
+            "columns": {
+                "primaryid": {
+                    "sdtype": "id"
+                },
+                "caseid": {
+                    "sdtype": "numerical"
+                },
+                "drug_seq": {
+                    "sdtype": "numerical"
+                },
+                "role_cod": {
+                    "sdtype": "categorical"
+                },
+                "drugname": {
+                    "sdtype": "categorical"
+                },
+                "prod_ai": {
+                    "sdtype": "categorical"
+                }
+            }
+        },
+        "OUTC_cleaned": {
+            "columns": {
+                "primaryid": {
+                    "sdtype": "id"
+                },
+                "caseid": {
+                    "sdtype": "numerical"
+                },
+                "outc_cod": {
+                    "sdtype": "categorical"
+                }
+            }
+        },
+        "REAC_cleaned": {
+            "columns": {
+                "primaryid": {
+                    "sdtype": "id"
+                },
+                "caseid": {
+                    "sdtype": "numerical"
+                },
+                "pt": {
+                    "sdtype": "categorical"
+                }
+            }
+        },
+        "RPSR_cleaned": {
+            "columns": {
+                "primaryid": {
+                    "sdtype": "id"
+                },
+                "caseid": {
+                    "sdtype": "numerical"
+                },
+                "rpsr_cod": {
+                    "sdtype": "categorical"
+                }
+            }
+        },
+        "INDI_cleaned": {
+            "columns": {
+                "primaryid": {
+                    "sdtype": "id"
+                },
+                "caseid": {
+                    "sdtype": "numerical"
+                },
+                "indi_drug_seq": {
+                    "sdtype": "numerical"
+                },
+                "indi_pt": {
+                    "sdtype": "categorical"
+                }
+            }
+        },
+        "THER_cleaned": {
+            "columns": {
+                "primaryid": {
+                    "sdtype": "id"
+                },
+                "caseid": {
+                    "sdtype": "numerical"
+                },
+                "dsg_drug_seq": {
+                    "sdtype": "numerical"
+                },
+                "start_dt": {
+                    "sdtype": "numerical"
+                },
+                "end_dt": {
+                    "sdtype": "numerical"
+                },
+                "dur": {
+                    "sdtype": "numerical"
+                },
+                "dur_cod": {
+                    "sdtype": "categorical"
+                }
+            }
+        },
+        "DEMO_cleaned": {
+            "columns": {
+                "primaryid": {
+                    "sdtype": "id"
+                },
+                "caseid": {
+                    "sdtype": "numerical"
+                },
+                "caseversion": {
+                    "sdtype": "numerical"
+                },
+                "fda_dt": {
+                    "sdtype": "numerical"
+                },
+                "age": {
+                    "sdtype": "numerical"
+                },
+                "sex": {
+                    "sdtype": "categorical"
+                },
+                "reporter_country": {
+                    "sdtype": "categorical"
+                },
+                "rept_cod": {
+                    "sdtype": "categorical"
+                }
+            },
+            "primary_key": "primaryid"
+        }
+    },
+    "relationships": [
+        {
+            "parent_table_name": "DEMO_cleaned",
+            "child_table_name": "INDI_cleaned",
+            "parent_primary_key": "primaryid",
+            "child_foreign_key": "primaryid"
+        },
+        {
+            "parent_table_name": "DEMO_cleaned",
+            "child_table_name": "THER_cleaned",
+            "parent_primary_key": "primaryid",
+            "child_foreign_key": "primaryid"
+        },
+        {
+            "parent_table_name": "DEMO_cleaned",
+            "child_table_name": "REAC_cleaned",
+            "parent_primary_key": "primaryid",
+            "child_foreign_key": "primaryid"
+        },
+        {
+            "parent_table_name": "DEMO_cleaned",
+            "child_table_name": "RPSR_cleaned",
+            "parent_primary_key": "primaryid",
+            "child_foreign_key": "primaryid"
+        },
+        {
+            "parent_table_name": "DEMO_cleaned",
+            "child_table_name": "OUTC_cleaned",
+            "parent_primary_key": "primaryid",
+            "child_foreign_key": "primaryid"
+        },
+        {
+            "parent_table_name": "DEMO_cleaned",
+            "child_table_name": "DRUG_cleaned",
+            "parent_primary_key": "primaryid",
+            "child_foreign_key": "primaryid"
+        }
+    ],
+    "METADATA_SPEC_VERSION": "V1"
+}

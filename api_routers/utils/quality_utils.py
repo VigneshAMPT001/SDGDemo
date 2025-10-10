@@ -1,13 +1,15 @@
+from tabnanny import verbose
+from tokenize import Number
 from typing import Any, Dict, Optional, Tuple
 
 from fastapi import HTTPException
 
-from api_routers.route_utils import (
+from api_routers.utils.route_utils import (
     load_domain_data,
     read_multi_table_zip_bytes,
     load_domain_metadata,
 )
-from api_routers.shared import QUALITY_JOBS
+from api_routers.utils.shared import QUALITY_JOBS
 from dbstore.connect import (
     create_connection,
     get_job_by_id,
@@ -70,20 +72,44 @@ def evaluate_report_and_score(
 
     synthetic_data = read_multi_table_zip_bytes(synthetic_zip_bytes)
     report = evaluate_quality(
-        real_data=real_data, synthetic_data=synthetic_data, metadata=metadata
+        real_data=real_data,
+        synthetic_data=synthetic_data,
+        metadata=metadata,
+        verbose=False,
     )
     try:
+        # Get the overall score
         score = report.get_score()
         # Ensure the score is a native Python float (avoid numpy scalar types)
         if score is not None:
             try:
                 score = float(score)
             except Exception:
-                # If conversion fails, keep as None to avoid DB adapter issues
                 score = None
+
+        # Get all property scores as a dictionary
+        property_scores = {}
+        try:
+            properties = report.get_properties()
+            # properties is a pd.DataFrame, so use .iterrows()
+            for _, prop in properties.iterrows():
+                prop_name = prop.get("Property")
+                prop_score = prop.get("Score")
+                if prop_name is not None and prop_score is not None:
+                    try:
+                        prop_score = float(prop_score)
+                    except Exception:
+                        prop_score = None
+                    property_scores[prop_name] = prop_score
+        except Exception:
+            property_scores = {}
+
+        print(property_scores)
+
     except Exception:
         score = None
-    return report, score
+        property_scores = {}
+    return report, score, property_scores
 
 
 def persist_quality_job(
@@ -94,6 +120,7 @@ def persist_quality_job(
     score: Optional[float] = None,
     error: Optional[str] = None,
     message: Optional[str] = None,
+    property_scores: Optional[Dict[str, float]] = None,
     report_data: Optional[Dict[str, Any]] = None,
 ) -> None:
     conn = create_connection()
@@ -113,6 +140,7 @@ def persist_quality_job(
             synthesis_job_id=synthesis_job_id,
             status=status,
             score=score,
+            property_scores=property_scores,
             error=error,
             message=message,
             report_data=report_data,

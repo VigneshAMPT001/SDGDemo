@@ -10,8 +10,11 @@ from typing import List, Dict, Any
 import pandas as pd
 import io
 import os
-from api_routers.dataset_validator import validate_custom_dataset, ValidationResult
-from api_routers.shared import AVAILABLE_DOMAINS, AVAILABLE_USECASES
+from api_routers.utils.dataset_validator import (
+    validate_custom_dataset,
+    ValidationResult,
+)
+from api_routers.utils.shared import AVAILABLE_DOMAINS, AVAILABLE_USECASES
 
 router = APIRouter(prefix="/validate", tags=["validation"])
 
@@ -98,7 +101,7 @@ async def get_expected_schema(domain: str, usecase: str):
             )
 
         # Get schema from validator
-        from api_routers.dataset_validator import DatasetValidator
+        from api_routers.utils.dataset_validator import DatasetValidator
 
         validator = DatasetValidator()
         schema_key = validator._get_schema_key(domain, usecase)

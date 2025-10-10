@@ -56,44 +56,55 @@ def load_domain_data(domain: str, usecase: str) -> Dict[str, pd.DataFrame]:
 
 
 def load_domain_metadata(domain: str, usecase: str) -> Optional[Metadata]:
-    """Load or detect metadata for a given domain and usecase.
+    """Load or detect and save metadata for a given domain and usecase.
 
     First tries to load from existing JSON files, then falls back to detection from data.
     """
+
+    def load_metadata(filepath: str) -> Optional[Metadata]:
+        if os.path.exists(metadata_file):
+            try:
+                metadata = Metadata.load_from_json(filepath=metadata_file)
+                if metadata:
+                    return metadata
+            except Exception as e:
+                print(f"Failed to load metadata from {metadata_file}: {e}")
+        return None
+
+    def save_metadata(domain: str, usecase: str, metadata: Metadata):
+        try:
+            if not os.path.exists(metadata_file):
+                filename = f"{domain}_{usecase}_v1.json"
+                metadata.save_to_json(filepath=f"metadata/{filename}")
+        except Exception as e:
+            print(f"Failed to save metadata for {filename}: {e}")
+
     if domain == "Pharma":
         if usecase == "Patient Cohort Builder":
             # Try to load existing metadata file
-            metadata_file = "metadata/metadata_pharmacohort_v1.json"
-            if os.path.exists(metadata_file):
-                try:
-                    metadata = Metadata.load_from_json(filepath=metadata_file)
-                    if metadata:
-                        return metadata
-                except Exception as e:
-                    print(f"Failed to load metadata from {metadata_file}: {e}")
+            metadata_file = "metadata/Pharma_Patient Cohort Builder_v1.json"
+            metadata = load_metadata(metadata_file)
 
             # Fallback: detect metadata from data
             data = load_domain_data(domain, usecase)
             if data:
-                return Metadata.detect_from_dataframes(data)
+                metadata = Metadata.detect_from_dataframes(data)
+                save_metadata(domain, usecase, metadata)
+                return metadata
             else:
                 raise ValueError("No data found for Patient Cohort Builder")
 
         elif usecase == "Pharmacovigilance":
             # Try to load existing metadata file
-            metadata_file = "metadata/metadata_pharmacv_v1.json"
-            if os.path.exists(metadata_file):
-                try:
-                    metadata = Metadata.load_from_json(filepath=metadata_file)
-                    if metadata:
-                        return metadata
-                except Exception as e:
-                    print(f"Failed to load metadata from {metadata_file}: {e}")
+            metadata_file = "metadata/Pharma_Pharmacovigilance_v1.json"
+            metadata = load_metadata(metadata_file)
 
             # Fallback: detect metadata from data
             data = load_domain_data(domain, usecase)
             if data:
-                return Metadata.detect_from_dataframes(data)
+                metadata = Metadata.detect_from_dataframes(data)
+                save_metadata(domain, usecase, metadata)
+                return metadata
             else:
                 raise ValueError("No data found for Pharmacovigilance")
     return None
@@ -135,18 +146,24 @@ def read_multi_table_zip_bytes(zip_bytes: bytes) -> Dict[str, pd.DataFrame]:
 
 
 def train_sdv_model(
-    data: Dict[str, pd.DataFrame], metadata: Metadata, params: Dict[str, Any]
+    data: Dict[str, pd.DataFrame],
+    domain: str,
+    usecase: str,
+    metadata: Metadata,
+    params: Dict[str, Any],
 ):
     cleaned_data = drop_unknown_references(data, metadata)
-
-    synthesizer = load_synthesizer(filepath="synthesizer/synthesizer_pharma_v1.pkl")
-    if synthesizer is None:
-        synthesizer = HMASynthesizer(metadata)
-        os.makedirs("synthesizer", exist_ok=True)
-        synthesizer.save("synthesizer/synthesizer_pharma_v1.pkl")
-
-    synthesizer.fit(cleaned_data)
+    synthesizer_file_path = f"synthesizer/synthesizer_{domain}_{usecase}_v1.pkl"
     scale = params.get("scale", 1.5)
+
+    if os.path.exists(synthesizer_file_path):
+        synthesizer = load_synthesizer(filepath=synthesizer_file_path)
+    else:
+        synthesizer = HMASynthesizer(metadata)
+        synthesizer.fit(cleaned_data)
+        os.makedirs("synthesizer", exist_ok=True)
+        synthesizer.save(synthesizer_file_path)
+
     synthetic_data = synthesizer.sample(scale=scale)
 
     return synthetic_data, synthesizer

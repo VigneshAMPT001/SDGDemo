@@ -3,6 +3,7 @@ tqdm
 streamlit
 pandas
 numpy
+scipy
 ctgan
 torch
 fastapi

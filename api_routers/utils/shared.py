@@ -32,10 +32,11 @@ class SingleTableParams(BaseModel):
 
 class SynthesizeRequest(BaseModel):
     model_type: str = Field(
-        ..., description="One of: 'SDV (Multi-table)', 'CTGAN', 'TVAE'"
+        ..., description="One of: 'SDV (HMA Synthesizer)', 'CTGAN', 'TVAE'"
     )
     domain: str = Field(..., description="Domain name, e.g., 'Pharma'")
     params: Dict[str, Any] = Field(default_factory=dict)
+    usecase: str = Field(..., description="Usecase for the seleted domain")
 
 
 class ModelConfigRequest(BaseModel):

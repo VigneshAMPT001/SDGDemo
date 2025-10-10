@@ -1,13 +1,12 @@
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, HTTPException, Query, Form
 from fastapi.responses import JSONResponse
-import uuid
-import json
+import uuid, json
 from typing import Optional, Dict, Any, Union
-from api_routers.shared import (
+from api_routers.utils.shared import (
     QUALITY_JOBS,
     QualityJobRequest,
 )
-from api_routers.quality_utils import (
+from api_routers.utils.quality_utils import (
     get_completed_synthesis_job_or_raise,
     ensure_zip_file_type_or_raise,
     load_domain_assets_or_raise,
@@ -29,43 +28,13 @@ router = APIRouter(prefix="/data_quality_checks", tags=["quality_runs"])
 # Data Quality routes (evaluate + visualize)
 # ---------------------------
 @router.post("/run_quality_check")
-async def create_quality_job(payload: QualityJobRequest):
+async def create_quality_job(payload: str = Form(...)):
     try:
-        # # Get the raw request body
-        # body = await request.body()
-
-        # # Try to parse as JSON
-        # try:
-        #     if isinstance(body, bytes):
-        #         body_str = body.decode("utf-8")
-        #     else:
-        #         body_str = body
-
-        #     # Check if it's a JSON string (double-encoded)
-        #     if body_str.startswith('"') and body_str.endswith('"'):
-        #         # It's a JSON string, parse it again
-        #         body_str = json.loads(body_str)
-
-        #     # Parse the JSON
-        #     data = json.loads(body_str) if isinstance(body_str, str) else body_str
-
-        # except json.JSONDecodeError as e:
-        #     raise HTTPException(
-        #         status_code=422, detail=f"Invalid JSON format: {str(e)}"
-        #     )
-
-        # # Create QualityJobRequest from the parsed data
-        # try:
-        #     payload = QualityJobRequest(**data)
-        # except Exception as e:
-        #     raise HTTPException(
-        #         status_code=422, detail=f"Invalid payload structure: {str(e)}"
-        #     )
-
-        print(payload.dict())
-        domain = payload.domain
-        usecase = payload.usecase
-        synth_job_id = payload.synthesis_job_id
+        data = json.loads(payload)
+        payload_data = QualityJobRequest(**data)
+        domain = payload_data.domain
+        usecase = payload_data.usecase
+        synth_job_id = payload_data.synthesis_job_id
 
         # Validate usecase - map common variations to valid values
         usecase_mapping = {
@@ -80,7 +49,7 @@ async def create_quality_job(payload: QualityJobRequest):
             usecase = usecase_mapping[usecase.lower()]
 
         # Final validation
-        from api_routers.shared import AVAILABLE_USECASES
+        from api_routers.utils.shared import AVAILABLE_USECASES
 
         if usecase not in AVAILABLE_USECASES:
             raise HTTPException(
@@ -94,7 +63,7 @@ async def create_quality_job(payload: QualityJobRequest):
 
         job_id = str(uuid.uuid4())
         try:
-            report, score = evaluate_report_and_score(
+            report, score, property_scores = evaluate_report_and_score(
                 real_data=data,
                 synthetic_zip_bytes=synth_job.get("csv_bytes"),
                 metadata=metadata,
@@ -105,6 +74,7 @@ async def create_quality_job(payload: QualityJobRequest):
                 synthesis_job_id=synth_job_id,
                 status="completed",
                 score=score,
+                property_scores=property_scores,
                 error=None,
                 message="Quality evaluation completed",
                 report_data=None,
@@ -126,6 +96,7 @@ async def create_quality_job(payload: QualityJobRequest):
                 status="failed",
                 score=None,
                 error=str(e),
+                property_scores=None,
                 message=None,
                 report_data=None,
             )
@@ -135,6 +106,7 @@ async def create_quality_job(payload: QualityJobRequest):
             "job_id": job_id,
             "status": QUALITY_JOBS[job_id]["status"],
             "score": QUALITY_JOBS[job_id].get("score"),
+            "property_scores": property_scores,
         }
 
     except HTTPException:

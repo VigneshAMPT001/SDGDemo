@@ -1,0 +1,258 @@
+{
+    "tables": {
+        "person": {
+            "columns": {
+                "person_id": {
+                    "sdtype": "id"
+                },
+                "gender_concept_id": {
+                    "sdtype": "id"
+                },
+                "year_of_birth": {
+                    "sdtype": "numerical"
+                },
+                "month_of_birth": {
+                    "sdtype": "numerical"
+                },
+                "day_of_birth": {
+                    "sdtype": "categorical"
+                },
+                "birth_datetime": {
+                    "sdtype": "numerical"
+                },
+                "race_concept_id": {
+                    "sdtype": "id"
+                },
+                "ethnicity_concept_id": {
+                    "sdtype": "id"
+                },
+                "location_id": {
+                    "sdtype": "id"
+                },
+                "provider_id": {
+                    "sdtype": "id"
+                },
+                "care_site_id": {
+                    "sdtype": "id"
+                },
+                "person_source_value": {
+                    "sdtype": "categorical"
+                },
+                "gender_source_value": {
+                    "sdtype": "categorical"
+                },
+                "gender_source_concept_id": {
+                    "sdtype": "id"
+                },
+                "race_source_value": {
+                    "sdtype": "categorical"
+                },
+                "race_source_concept_id": {
+                    "sdtype": "id"
+                },
+                "ethnicity_source_value": {
+                    "sdtype": "categorical"
+                },
+                "ethnicity_source_concept_id": {
+                    "sdtype": "id"
+                }
+            },
+            "primary_key": "person_id"
+        },
+        "procedure_occurrence": {
+            "columns": {
+                "procedure_occurrence_id": {
+                    "sdtype": "id"
+                },
+                "person_id": {
+                    "sdtype": "id"
+                },
+                "procedure_concept_id": {
+                    "sdtype": "id"
+                },
+                "procedure_date": {
+                    "datetime_format": "%Y-%m-%d",
+                    "sdtype": "datetime"
+                },
+                "procedure_datetime": {
+                    "datetime_format": "%Y-%m-%d %H:%M:%S",
+                    "sdtype": "datetime"
+                },
+                "procedure_type_concept_id": {
+                    "sdtype": "id"
+                },
+                "modifier_concept_id": {
+                    "sdtype": "id"
+                },
+                "quantity": {
+                    "sdtype": "numerical"
+                },
+                "provider_id": {
+                    "sdtype": "id"
+                },
+                "visit_occurrence_id": {
+                    "sdtype": "id"
+                },
+                "procedure_source_value": {
+                    "sdtype": "categorical"
+                },
+                "procedure_source_concept_id": {
+                    "sdtype": "id"
+                },
+                "qualifier_source_value": {
+                    "sdtype": "numerical"
+                }
+            },
+            "primary_key": "procedure_occurrence_id"
+        },
+        "condition_occurrence": {
+            "columns": {
+                "condition_occurrence_id": {
+                    "sdtype": "id"
+                },
+                "person_id": {
+                    "sdtype": "id"
+                },
+                "condition_concept_id": {
+                    "sdtype": "id"
+                },
+                "condition_start_date": {
+                    "datetime_format": "%Y-%m-%d",
+                    "sdtype": "datetime"
+                },
+                "condition_start_datetime": {
+                    "datetime_format": "%Y-%m-%d %H:%M:%S",
+                    "sdtype": "datetime"
+                },
+                "condition_end_date": {
+                    "datetime_format": "%Y-%m-%d",
+                    "sdtype": "datetime"
+                },
+                "condition_end_datetime": {
+                    "sdtype": "numerical"
+                },
+                "condition_type_concept_id": {
+                    "sdtype": "id"
+                },
+                "stop_reason": {
+                    "sdtype": "numerical"
+                },
+                "provider_id": {
+                    "sdtype": "id"
+                },
+                "visit_occurrence_id": {
+                    "sdtype": "id"
+                },
+                "condition_source_value": {
+                    "sdtype": "categorical"
+                },
+                "condition_source_concept_id": {
+                    "sdtype": "id"
+                },
+                "condition_status_source_value": {
+                    "sdtype": "categorical"
+                },
+                "condition_status_concept_id": {
+                    "sdtype": "id"
+                }
+            },
+            "primary_key": "condition_occurrence_id"
+        },
+        "drug_exposure": {
+            "columns": {
+                "drug_exposure_id": {
+                    "sdtype": "id"
+                },
+                "person_id": {
+                    "sdtype": "id"
+                },
+                "drug_concept_id": {
+                    "sdtype": "id"
+                },
+                "drug_exposure_start_date": {
+                    "datetime_format": "%Y-%m-%d",
+                    "sdtype": "datetime"
+                },
+                "drug_exposure_start_datetime": {
+                    "datetime_format": "%Y-%m-%d %H:%M:%S",
+                    "sdtype": "datetime"
+                },
+                "drug_exposure_end_date": {
+                    "datetime_format": "%Y-%m-%d",
+                    "sdtype": "datetime"
+                },
+                "drug_exposure_end_datetime": {
+                    "datetime_format": "%Y-%m-%d %H:%M:%S",
+                    "sdtype": "datetime"
+                },
+                "verbatim_end_date": {
+                    "sdtype": "numerical"
+                },
+                "drug_type_concept_id": {
+                    "sdtype": "id"
+                },
+                "stop_reason": {
+                    "sdtype": "numerical"
+                },
+                "refills": {
+                    "sdtype": "numerical"
+                },
+                "quantity": {
+                    "sdtype": "numerical"
+                },
+                "days_supply": {
+                    "sdtype": "categorical"
+                },
+                "sig": {
+                    "sdtype": "numerical"
+                },
+                "route_concept_id": {
+                    "sdtype": "id"
+                },
+                "lot_number": {
+                    "sdtype": "numerical"
+                },
+                "provider_id": {
+                    "sdtype": "id"
+                },
+                "visit_occurrence_id": {
+                    "sdtype": "id"
+                },
+                "drug_source_value": {
+                    "sdtype": "categorical"
+                },
+                "drug_source_concept_id": {
+                    "sdtype": "id"
+                },
+                "route_source_value": {
+                    "sdtype": "numerical"
+                },
+                "dose_unit_source_value": {
+                    "sdtype": "numerical"
+                }
+            },
+            "primary_key": "drug_exposure_id"
+        }
+    },
+    "relationships": [
+        {
+            "parent_table_name": "person",
+            "child_table_name": "procedure_occurrence",
+            "parent_primary_key": "person_id",
+            "child_foreign_key": "person_id"
+        },
+        {
+            "parent_table_name": "person",
+            "child_table_name": "drug_exposure",
+            "parent_primary_key": "person_id",
+            "child_foreign_key": "person_id"
+        },
+        {
+            "parent_table_name": "person",
+            "child_table_name": "condition_occurrence",
+            "parent_primary_key": "person_id",
+            "child_foreign_key": "person_id"
+        }
+    ],
+    "METADATA_SPEC_VERSION": "V1"
+}

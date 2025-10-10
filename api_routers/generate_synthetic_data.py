@@ -7,10 +7,10 @@ import json, io, uuid, os, tempfile
 from sdv.metadata import Metadata
 import pandas as pd
 
-from api_routers.shared import (
+from api_routers.utils.shared import (
     SynthesizeRequest,
 )
-from api_routers.route_utils import (
+from api_routers.utils.route_utils import (
     load_domain_data,
     create_zip_from_tables,
     train_sdv_model,
@@ -24,7 +24,6 @@ from dbstore.connect import (
     fetch_query,
 )
 
-router = APIRouter()
 
 router = APIRouter(prefix="/synthesize", tags=["synthesize"])
 
@@ -39,7 +38,7 @@ def validate_synthesis_request(domain: str, req: SynthesizeRequest) -> None:
     if req.domain != domain:
         raise HTTPException(status_code=400, detail="Request domain mismatch")
 
-    if req.model_type not in ["SDV (Multi-table)", "CTGAN", "TVAE"]:
+    if req.model_type not in ["SDV (HMA Synthesizer)", "CTGAN", "TVAE"]:
         raise HTTPException(status_code=400, detail="Unsupported model_type")
 
 
@@ -47,6 +46,7 @@ def _persist_synthesis_job(
     *,
     file_bytes: Optional[bytes],
     file_name: Optional[str],
+    usecase: str,
     file_type: Optional[str],
     domain: Optional[str],
     model_used: Optional[str],
@@ -75,7 +75,7 @@ def _persist_synthesis_job(
             file_size=len(file_bytes) if file_bytes is not None else None,
             file_type=file_type,
             domain=domain,
-            use_case=None,
+            use_case=usecase,
         )
         if not insert_ok:
             raise HTTPException(status_code=500, detail="Failed to persist job")
@@ -95,7 +95,7 @@ def process_sdv_synthesis(
     if metadata is None:
         raise HTTPException(status_code=400, detail="Metadata required for SDV")
 
-    synthetic_data, _ = train_sdv_model(data, metadata, req.params)
+    synthetic_data, _ = train_sdv_model(data, domain, usecase, metadata, req.params)
     zip_bytes = create_zip_from_tables(synthetic_data)
 
     return {
@@ -104,7 +104,7 @@ def process_sdv_synthesis(
         "model_type": req.model_type,
         "result_type": "zip",
         "bytes": zip_bytes,
-        "filename": f"synthetic_{domain.lower()}_sdv.zip",
+        "filename": f"synthetic_{domain.lower()}_{usecase.lower()}_sdv.zip",
         "file_type": "application/zip",
     }
 
@@ -131,16 +131,15 @@ def process_single_table_synthesis(
     }
 
 
-def create_synthesis_job_result(
-    domain: str, usecase: str, req: SynthesizeRequest
-) -> Dict[str, Any]:
+def create_synthesis_job_result(domain: str, req: SynthesizeRequest) -> Dict[str, Any]:
     """Create synthesis job, persist to DB, and return result stub."""
+    usecase = req.usecase
     data = load_domain_data(domain, usecase)
     if not data:
         raise HTTPException(status_code=404, detail="Domain data not available")
 
     try:
-        if req.model_type == "SDV (Multi-table)":
+        if req.model_type == "SDV (HMA Synthesizer)":
             result = process_sdv_synthesis(domain, usecase, data, req)
         else:
             result = process_single_table_synthesis(data, req)
@@ -149,6 +148,7 @@ def create_synthesis_job_result(
         job_id = _persist_synthesis_job(
             file_bytes=result["bytes"],
             file_name=result["filename"],
+            usecase=usecase,
             file_type=result.get("file_type"),
             domain=result["domain"],
             model_used=req.model_type,
@@ -198,8 +198,9 @@ async def read_uploaded_files(files: List[UploadFile]) -> Dict[str, pd.DataFrame
         try:
             content = await uf.read()
             df = pd.read_csv(io.BytesIO(content))
+            df_drop_rows = df.dropna()
             table_name = os.path.splitext(os.path.basename(uf.filename or "table"))[0]
-            tables[table_name] = df
+            tables[table_name] = df_drop_rows
         except Exception as e:
             raise HTTPException(
                 status_code=400, detail=f"Failed to read {uf.filename}: {str(e)}"
@@ -278,7 +279,7 @@ def process_single_table_custom(
         io.BytesIO(file_bytes),
         media_type=file_type,
         headers={
-            "Content-Disposition": f"attachment; filename={os.path.splitext(file_name)[0]}{datetime.now().strftime('%Y%m%d%H%M%S')}.csv",
+            "Content-Disposition": f"attachment; filename={os.path.splitext(file_name)[0]}.csv",
             "X-Job-Id": job_id,
         },
     )
@@ -330,12 +331,20 @@ def get_all_jobs_result(domain: str):
         raise HTTPException(status_code=500, detail="Database connection failed")
 
     try:
-        query = (
-            "SELECT job_id, created_at, file_name, file_size, "
-            "num_files, status, model_used, version, file_type, domain, use_case "
-            "FROM synthetic_jobs WHERE domain = %s"
-        )
-        jobs = fetch_query(conn, query, (domain,))
+        if domain != "all":
+            query = (
+                "SELECT job_id, created_at, file_name, file_size, "
+                "num_files, status, model_used, version, file_type, domain, use_case "
+                "FROM synthetic_jobs WHERE domain = %s"
+            )
+            jobs = fetch_query(conn, query, (domain,))
+        else:
+            query = (
+                "SELECT job_id, created_at, file_name, file_size, "
+                "num_files, status, model_used, version, file_type, domain, use_case "
+                "FROM synthetic_jobs"
+            )
+            jobs = fetch_query(conn, query)
     finally:
         try:
             conn.close()
@@ -377,11 +386,14 @@ def download_synthetic_dataset_result(domain: str, job_id: str):
 # =============================================================================
 
 
-@router.post("/{domain}/generate_synthetic_dataset")
-def create_synthesis_job(domain: str, req: SynthesizeRequest):
-    """Create a synthesis job for the specified domain."""
-    validate_synthesis_request(domain, req)
-    return create_synthesis_job_result(domain, req)
+@router.post("/generate_synthetic_dataset")
+def create_synthesis_job(req: str = Form(...)):
+    """Create a synthesis job for the specified domain-usecase"""
+    data = json.loads(req)
+    synth_req = SynthesizeRequest(**data)
+    domain = synth_req.domain
+    validate_synthesis_request(domain, synth_req)
+    return create_synthesis_job_result(domain, synth_req)
 
 
 @router.get("/{domain}/download_synthetic_dataset/{job_id}")

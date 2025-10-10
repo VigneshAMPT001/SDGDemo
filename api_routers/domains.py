@@ -1,22 +1,20 @@
+from fastapi import Query
 from fastapi import APIRouter, HTTPException
-from api_routers.route_utils import (
+from api_routers.utils.route_utils import (
     load_domain_data,
     load_domain_metadata,
 )
-
-from api_routers.shared import AVAILABLE_DOMAINS, AVAILABLE_USECASES
+from api_routers.utils.shared import (
+    AVAILABLE_DOMAINS,
+    AVAILABLE_USECASES,
+    DatasetTable,
+    DatasetResponse,
+)
 from fastapi.responses import StreamingResponse
-import io
-import zipfile
-import json
-from datetime import datetime
-from api_routers.shared import DatasetTable, DatasetResponse
-from fastapi import Query
+import io, zipfile, json
 from typing import Dict, Optional
 import pandas as pd
 from sdv.metadata import Metadata
-
-router = APIRouter()
 
 router = APIRouter(prefix="/domains", tags=["domains"])
 

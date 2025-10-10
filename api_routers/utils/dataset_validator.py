@@ -80,11 +80,11 @@ class DatasetValidator:
                         "provider_id": "float64",  # Can be NaN
                         "care_site_id": "float64",  # Can be NaN
                         "person_source_value": "object",
-                        "gender_source_value": "object",
+                        "gender_source_value": "int64",
                         "gender_source_concept_id": "float64",  # Can be NaN
-                        "race_source_value": "object",
+                        "race_source_value": "int64",
                         "race_source_concept_id": "float64",  # Can be NaN
-                        "ethnicity_source_value": "object",
+                        "ethnicity_source_value": "int64",
                         "ethnicity_source_concept_id": "float64",  # Can be NaN
                     },
                     "primary_key": "person_id",
@@ -111,9 +111,9 @@ class DatasetValidator:
                     "required_columns": ["care_site_id", "care_site_name"],
                     "column_types": {
                         "care_site_id": "int64",
-                        "care_site_name": "object",
+                        "care_site_name": "float64",
                         "place_of_service_concept_id": "int64",
-                        "location_id": "int64",
+                        "location_id": "float64",
                         "care_site_source_value": "object",
                         "place_of_service_source_value": "object",
                     },
@@ -454,7 +454,7 @@ class DatasetValidator:
         type_mappings = {
             "int64": ["int64", "int32", "int16", "int8"],
             "float64": ["float64", "float32", "int64", "int32", "int16", "int8"],
-            "object": ["object", "string"],
+            "object": ["string", "object"],
             "bool": ["bool", "int64", "int32", "int16", "int8"],
         }
 

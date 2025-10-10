@@ -1,7 +1,5 @@
 from fastapi import APIRouter
-from api_routers.shared import MODEL_CONFIGS, ModelConfigRequest
-
-router = APIRouter()
+from api_routers.utils.shared import MODEL_CONFIGS, ModelConfigRequest
 
 router = APIRouter(prefix="/models", tags=["models"])
 
@@ -13,7 +11,7 @@ router = APIRouter(prefix="/models", tags=["models"])
 def get_models():
     return {
         "models": [
-            {"id": "sdv", "name": "SDV (Multi-table)", "capability": "multi-table"},
+            {"id": "sdv", "name": "SDV (HMA Synthesizer)", "capability": "multi-table"},
             {"id": "ctgan", "name": "CTGAN", "capability": "single-table"},
             {"id": "tvae", "name": "TVAE", "capability": "single-table"},
         ]

@@ -2,6 +2,7 @@ import os
 import psycopg2
 from psycopg2 import Error, extras
 from dotenv import load_dotenv
+import json
 
 # Load variables from .env file
 load_dotenv()
@@ -151,6 +152,7 @@ def insert_quality_job(
     domain,
     synthesis_job_id,
     status,
+    property_scores,
     score=None,
     error=None,
     message=None,
@@ -158,15 +160,17 @@ def insert_quality_job(
 ):
     """Insert a quality job record into a quality_jobs table."""
     sql = """
-        INSERT INTO quality_runs (job_id, domain, synthesis_job_id, status, score, error, message, report_data, created_at)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NOW())
+        INSERT INTO quality_runs (job_id, domain, synthesis_job_id, status, score, property_scores, error, message, report_data, created_at)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
     """
+    property_scores_string = json.dumps(property_scores)
     params = (
         job_id,
         domain,
         synthesis_job_id,
         status,
         score,
+        property_scores_string,
         error,
         message,
         report_data,
