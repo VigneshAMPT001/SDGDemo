@@ -19,6 +19,16 @@ def _int_columns(df: pd.DataFrame) -> List[str]:
     return [c for c in df.columns if pd.api.types.is_integer_dtype(df[c])]
 
 
+async def _read_csv_upload(file: UploadFile) -> pd.DataFrame:
+    try:
+        content = await file.read()
+        return pd.read_csv(io.BytesIO(content))
+    except Exception as e:
+        raise HTTPException(
+            status_code=400, detail=f"Failed to read {file.filename}: {str(e)}"
+        )
+
+
 def _get_numeric_stats(df: pd.DataFrame, col: str) -> Dict[str, Any]:
     """Calculate comprehensive numeric statistics for a column"""
     try:
@@ -320,16 +330,6 @@ def _profile_dataframe(df: pd.DataFrame) -> Dict[str, Any]:
             ),
         },
     }
-
-
-async def _read_csv_upload(file: UploadFile) -> pd.DataFrame:
-    try:
-        content = await file.read()
-        return pd.read_csv(io.BytesIO(content))
-    except Exception as e:
-        raise HTTPException(
-            status_code=400, detail=f"Failed to read {file.filename}: {str(e)}"
-        )
 
 
 @router.post("/profile")

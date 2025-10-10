@@ -1,17 +1,3 @@
----
-title: SDGDemo
-emoji: 📉
-colorFrom: indigo
-colorTo: pink
-sdk: gradio
-sdk_version: 5.45.0
-app_file: app.py
-pinned: false
-license: mit
----
-
-Check out the configuration reference at https://huggingface.co/docs/hub/spaces-config-reference
-
 ## SDGDemo
 
 SDGDemo provides a FastAPI-based service and Streamlit UI for profiling datasets, validating schema/quality, and generating synthetic data using CTGAN/TVAE.
@@ -73,15 +59,3 @@ Build and run with Docker:
 docker build -t sdgdemo:latest .
 docker run --rm -p 8000:8000 sdgdemo:latest
 ```
-
-### Makefile Shortcuts
-Common tasks may be available via `Makefile`:
-```bash
-make help
-```
-
-### License
-MIT License. See `LICENSE`.
-
-### Contributing
-Please read `CONTRIBUTING.rst` and open pull requests against the active branch.
