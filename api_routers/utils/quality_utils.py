@@ -63,53 +63,74 @@ def load_domain_assets_or_raise(
     return data, metadata
 
 
-def evaluate_report_and_score(
+def generate_quality_report(
     real_data: Dict[str, Any],
     synthetic_zip_bytes: bytes,
     metadata: Dict[str, Any],
-):
-    from sdv.evaluation.multi_table import evaluate_quality
+    synth_iden: str,
+) -> str:
+    from sdmetrics.reports.multi_table import QualityReport
+    import os
 
-    synthetic_data = read_multi_table_zip_bytes(synthetic_zip_bytes)
-    report = evaluate_quality(
-        real_data=real_data,
-        synthetic_data=synthetic_data,
-        metadata=metadata,
-        verbose=False,
-    )
+    report_filepath = f"quality_reports/{synth_iden}.pkl"
     try:
-        # Get the overall score
-        score = report.get_score()
-        # Ensure the score is a native Python float (avoid numpy scalar types)
-        if score is not None:
-            try:
-                score = float(score)
-            except Exception:
-                score = None
+        if not os.path.exists(report_filepath):
+            report = QualityReport()
+            synthetic_data = read_multi_table_zip_bytes(synthetic_zip_bytes)
+            report.generate(
+                real_data=real_data,
+                synthetic_data=synthetic_data,
+                metadata=metadata.to_dict(),
+            )
+            os.makedirs("quality_reports", exist_ok=True)
 
-        # Get all property scores as a dictionary
-        property_scores = {}
-        try:
-            properties = report.get_properties()
-            # properties is a pd.DataFrame, so use .iterrows()
-            for _, prop in properties.iterrows():
-                prop_name = prop.get("Property")
-                prop_score = prop.get("Score")
-                if prop_name is not None and prop_score is not None:
-                    try:
-                        prop_score = float(prop_score)
-                    except Exception:
-                        prop_score = None
-                    property_scores[prop_name] = prop_score
-        except Exception:
-            property_scores = {}
+            generated_report_file_path = f"quality_reports/{synth_iden}.pkl"
+            report.save(filepath=generated_report_file_path)
+            return generated_report_file_path
+    except Exception:
+        raise HTTPException(
+            status_code=500,
+            detail="Unable to get back report",
+        )
+    return report_filepath
 
-        print(property_scores)
 
+def get_report_scores(
+    report_path,
+) -> Tuple[Optional[float], Dict[str, Optional[float]]]:
+    """Extract overall and per-property quality scores from the generated report."""
+    score = None
+    property_scores: Dict[str, Optional[float]] = {}
+
+    from sdmetrics.reports.multi_table import QualityReport
+
+    report = QualityReport.load(report_path)
+
+    # Get overall score
+    try:
+        score_raw = report.get_score()
+        score = float(score_raw) if score_raw is not None else None
     except Exception:
         score = None
+
+    # Get property scores
+    try:
+        properties = report.get_properties()
+        for _, prop in properties.iterrows():
+            prop_name = prop.get("Property")
+            prop_score_raw = prop.get("Score")
+            if prop_name is not None:
+                try:
+                    prop_score = (
+                        float(prop_score_raw) if prop_score_raw is not None else None
+                    )
+                except Exception:
+                    prop_score = None
+                property_scores[prop_name] = prop_score
+    except Exception:
         property_scores = {}
-    return report, score, property_scores
+
+    return score, property_scores
 
 
 def persist_quality_job(
@@ -117,11 +138,11 @@ def persist_quality_job(
     domain: str,
     synthesis_job_id: str,
     status: str,
+    report_data: Dict[str, Any],
     score: Optional[float] = None,
     error: Optional[str] = None,
     message: Optional[str] = None,
     property_scores: Optional[Dict[str, float]] = None,
-    report_data: Optional[Dict[str, Any]] = None,
 ) -> None:
     conn = create_connection()
     if conn is None:
@@ -159,6 +180,7 @@ def cache_completed_report(
     domain: str,
     synthesis_job_id: str,
     score: Optional[float],
+    property_scores: Dict[str, float],
     report: Any,
     message: str = "Quality evaluation completed",
 ) -> None:
@@ -167,6 +189,7 @@ def cache_completed_report(
         "domain": domain,
         "synthesis_job_id": synthesis_job_id,
         "score": score,
+        "property_scores": property_scores,
         "report": report,
         "message": message,
     }
@@ -200,12 +223,12 @@ def build_quality_job_response_from_cache(job_id: str) -> Dict[str, Any]:
     return response
 
 
-def get_db_quality_job_or_none(job_id: str) -> Optional[Dict[str, Any]]:
+def get_db_quality_job_or_none(synth_job_id: str) -> Optional[Dict[str, Any]]:
     conn = create_connection()
     if conn is None:
         raise HTTPException(status_code=500, detail="Database connection failed")
     try:
-        return get_quality_job_by_id(conn, job_id)
+        return get_quality_job_by_id(conn, synth_job_id)
     finally:
         try:
             conn.close()
@@ -228,13 +251,13 @@ def shape_db_quality_job_response(db_job: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def build_visualization_kwargs(
-    property_name: str, table_name: Optional[str], column_name: Optional[str]
+    property_name: str, table_name: Optional[str]
 ) -> Dict[str, Any]:
     kwargs: Dict[str, Any] = {"property_name": property_name}
     if table_name is not None:
         kwargs["table_name"] = table_name
-    if column_name is not None:
-        kwargs["column_name"] = column_name
+    # if column_name is not None:
+    #     kwargs["column_name"] = column_name
     return kwargs
 
 

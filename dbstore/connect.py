@@ -21,7 +21,7 @@ def create_connection(isCloud: bool = False):
                 password=os.getenv("DB_PASSWORD"),
                 port=os.getenv("DB_PORT", "5432"),
             )
-        print("Connection to PostgreSQL DB successful")
+        # print("Connection to PostgreSQL DB successful")
     except Error as e:
         print(f"The error '{e}' occurred")
     return connection
@@ -153,10 +153,10 @@ def insert_quality_job(
     synthesis_job_id,
     status,
     property_scores,
+    report_data,
     score=None,
     error=None,
     message=None,
-    report_data=None,
 ):
     """Insert a quality job record into a quality_jobs table."""
     sql = """
@@ -192,8 +192,8 @@ def insert_quality_job(
 def get_quality_job_by_id(connection, job_id):
     """Fetch a quality job by job_id. Returns dict or None."""
     sql = """
-        SELECT job_id, domain, synthesis_job_id, status, score, error, message, report_data, created_at
-        FROM quality_jobs WHERE job_id = %s
+        SELECT job_id, domain, synthesis_job_id, status, score, error, message, report_data, created_at, property_scores
+	    FROM quality_runs WHERE synthesis_job_id = %s
     """
     cursor = connection.cursor()
     try:

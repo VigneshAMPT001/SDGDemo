@@ -354,15 +354,15 @@ def get_all_jobs_result(domain: str):
     return jobs
 
 
-def download_synthetic_dataset_result(domain: str, job_id: str):
+def download_synthetic_dataset_result(job_id: str):
     """Download a synthetic dataset by job_id and domain."""
     conn = create_connection()
     if conn is None:
         raise HTTPException(status_code=500, detail="Database connection failed")
 
     try:
-        query = "SELECT csv_bytes, file_type FROM synthetic_jobs WHERE job_id = %s AND domain = %s"
-        rows = fetch_query(conn, query, (job_id, domain))
+        query = "SELECT csv_bytes, file_type FROM synthetic_jobs WHERE job_id = %s"
+        rows = fetch_query(conn, query, (job_id,))
         if not rows:
             raise HTTPException(status_code=404, detail="Job not found")
 
@@ -393,13 +393,18 @@ def create_synthesis_job(req: str = Form(...)):
     synth_req = SynthesizeRequest(**data)
     domain = synth_req.domain
     validate_synthesis_request(domain, synth_req)
-    return create_synthesis_job_result(domain, synth_req)
+    result = create_synthesis_job_result(domain, synth_req)
+
+    if result.get("status") == "failed" or "error" in result:
+        raise HTTPException(status_code=500, detail=result)
+
+    return result
 
 
-@router.get("/{domain}/download_synthetic_dataset/{job_id}")
-def download_synthetic_dataset(domain: str, job_id: str):
+@router.get("/download_synthetic_dataset/{job_id}")
+def download_synthetic_dataset(job_id: str):
     """Download a synthetic dataset by job_id and domain."""
-    return download_synthetic_dataset_result(domain, job_id)
+    return download_synthetic_dataset_result(job_id)
 
 
 @router.get("/{domain}/get_all_jobs")
